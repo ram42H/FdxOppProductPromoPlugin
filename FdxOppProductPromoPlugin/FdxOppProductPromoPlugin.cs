@@ -28,10 +28,11 @@ namespace FdxOppProductPromoPlugin
             Entity: Opportunity Product, Fields: Unadjusted MRR, Monthly Promo Value, Term
             Entity: Promo, Fields: Promo Category, units
             */
-            Money unadjustedMRRCurr;
-            decimal unadjustedMRR = 0, units = 0, monthlyPromoValue = 0;
+            Money unadjustedMRRCurr, flatOffAmountCurr;
+            decimal unadjustedMRR = 0, units = 0, monthlyPromoValue = 0, flatOffAmount = 0;
             int termValue = 1, promoCategory = 0;
             string term = "";
+            EntityReference promoName = null;
 
             // The InputParameters collection contains all the data passed in the message request
             if (context.InputParameters.Contains("Target") && context.InputParameters["Target"] is Entity)
@@ -50,16 +51,25 @@ namespace FdxOppProductPromoPlugin
 
                     Entity oppProdEntity = new Entity();
 
-                    oppProdEntity = service.Retrieve("opportunityproduct", entity.Id, new ColumnSet("fdx_unadjustedmrr", "fdx_term", "fdx_promo"));                    
+                    oppProdEntity = service.Retrieve("opportunityproduct", entity.Id, new ColumnSet("fdx_unadjustedmrr", "fdx_term", "fdx_promo"));
 
-                    unadjustedMRRCurr = (Money)oppProdEntity.Attributes["fdx_unadjustedmrr"];
-                    unadjustedMRR = unadjustedMRRCurr.Value;                    
+                    if (oppProdEntity.Contains("fdx_unadjustedmrr"))
+                    {
+                        unadjustedMRRCurr = (Money)oppProdEntity.Attributes["fdx_unadjustedmrr"];
+                        unadjustedMRR = unadjustedMRRCurr.Value;
+                    }
 
-                    term = oppProdEntity.FormattedValues["fdx_term"].ToString();
-                    termValue = Int32.Parse(term);
+                    if (oppProdEntity.Contains("fdx_term"))
+                    {
+                        term = oppProdEntity.FormattedValues["fdx_term"].ToString();
+                        termValue = Int32.Parse(term);
+                    }
 
-                    EntityReference promoName = (EntityReference)oppProdEntity.Attributes["fdx_promo"];
-
+                    if (oppProdEntity.Contains("fdx_promo"))
+                    {
+                        promoName = (EntityReference)oppProdEntity.Attributes["fdx_promo"];
+                    }
+                    
                     #region Update promo value based on promo selected on opportunity product
 
                     Entity updateOppProduct = new Entity
@@ -70,7 +80,7 @@ namespace FdxOppProductPromoPlugin
 
                     if (promoName != null)
                     {
-                        Entity promoEntity = service.Retrieve("fdx_promo", ((EntityReference)oppProdEntity.Attributes["fdx_promo"]).Id, new ColumnSet("fdx_category", "fdx_unit"));
+                        Entity promoEntity = service.Retrieve("fdx_promo", ((EntityReference)oppProdEntity.Attributes["fdx_promo"]).Id, new ColumnSet("fdx_category", "fdx_unit", "fdx_flatoffamount")); 
 
                         tracingService.Trace("Promo GUID" + ((EntityReference)oppProdEntity.Attributes["fdx_promo"]).Id);
 
@@ -84,6 +94,12 @@ namespace FdxOppProductPromoPlugin
                             units = (decimal)promoEntity.Attributes["fdx_unit"];
                         }
 
+                        if (promoEntity.Contains("fdx_flatoffamount"))
+                        {
+                            flatOffAmountCurr = (Money)promoEntity.Attributes["fdx_flatoffamount"];
+                            flatOffAmount = flatOffAmountCurr.Value;
+                        }
+
 
                         switch (promoCategory)
                         {
@@ -91,6 +107,12 @@ namespace FdxOppProductPromoPlugin
                             //Calculation for promo type : Free time off
                             case 1:
                                 monthlyPromoValue = (unadjustedMRR * units) / termValue;
+                                updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
+                                break;
+
+                            //Calculation for promo type : Flat time off
+                            case 2:
+                                monthlyPromoValue = (flatOffAmount * units) / termValue;
                                 updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
                                 break;
 
