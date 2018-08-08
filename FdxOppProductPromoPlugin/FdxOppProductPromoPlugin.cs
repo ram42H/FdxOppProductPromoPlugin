@@ -110,7 +110,7 @@ namespace FdxOppProductPromoPlugin
                                 updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
                                 break;
 
-                            //Calculation for promo type : Flat time off
+                            //Calculation for promo type : Flat Dollar off
                             case 2:
                                 monthlyPromoValue = (flatOffAmount * units) / termValue;
                                 updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
