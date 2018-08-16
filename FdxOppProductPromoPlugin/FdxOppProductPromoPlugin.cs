@@ -30,7 +30,7 @@ namespace FdxOppProductPromoPlugin
             */
             Money unadjustedMRRCurr, flatOffAmountCurr;
             decimal unadjustedMRR = 0, units = 0, monthlyPromoValue = 0, flatOffAmount = 0;
-            int termValue = 1, promoCategory = 0;
+            int termValue = 1, promoCategory = 0, percentageOff = 0;
             string term = "";
             EntityReference promoName = null;
 
@@ -80,7 +80,7 @@ namespace FdxOppProductPromoPlugin
 
                     if (promoName != null)
                     {
-                        Entity promoEntity = service.Retrieve("fdx_promo", ((EntityReference)oppProdEntity.Attributes["fdx_promo"]).Id, new ColumnSet("fdx_category", "fdx_unit", "fdx_flatoffamount")); 
+                        Entity promoEntity = service.Retrieve("fdx_promo", ((EntityReference)oppProdEntity.Attributes["fdx_promo"]).Id, new ColumnSet("fdx_category", "fdx_unit", "fdx_flatoffamount", "fdx_percentageoff")); 
 
                         tracingService.Trace("Promo GUID" + ((EntityReference)oppProdEntity.Attributes["fdx_promo"]).Id);
 
@@ -100,6 +100,11 @@ namespace FdxOppProductPromoPlugin
                             flatOffAmount = flatOffAmountCurr.Value;
                         }
 
+                        if (promoEntity.Contains("fdx_percentageoff"))
+                        {
+                            percentageOff = (int)promoEntity.Attributes["fdx_percentageoff"];
+                        }
+
 
                         switch (promoCategory)
                         {
@@ -113,6 +118,12 @@ namespace FdxOppProductPromoPlugin
                             //Calculation for promo type : Flat Dollar off
                             case 2:
                                 monthlyPromoValue = (flatOffAmount * units) / termValue;
+                                updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
+                                break;
+                            
+                            //Calculation for promo type : Percentage Off
+                            case 3:
+                                monthlyPromoValue = ((percentageOff * units) / (termValue * 100)) * unadjustedMRR;
                                 updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
                                 break;
 
