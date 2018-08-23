@@ -36,23 +36,18 @@ namespace FdxOppProductPromoPlugin
             TimeSpan timeDiffference;
 
 
-            if (context.MessageName != "Win")
-            {
-                return;
-            }
-            
             // The InputParameters collection contains all the data passed in the message request
 
-            if (!(context.InputParameters.Contains("OpportunityClose") && context.InputParameters["OpportunityClose"] is Entity))
+            if (!(context.InputParameters.Contains("OpportunityClose") && context.InputParameters["OpportunityClose"] is Entity) && context.MessageName != "Win")
             {
                 return;
             }
 
-                //Obtain the target entity from the input parameters.
-               Entity entity = (Entity)context.InputParameters["OpportunityClose"];                
+            //Obtain the target entity from the input parameters.
+            Entity entity = (Entity)context.InputParameters["OpportunityClose"];                
 
-                try
-                {
+            try
+            {
                 #region Plug-in business logic                    
 
                 Guid opportunityId = ((EntityReference)entity.Attributes["opportunityid"]).Id;
@@ -62,7 +57,93 @@ namespace FdxOppProductPromoPlugin
                     actualCloseDate = (DateTime)entity.Attributes["actualend"];
                 }
 
-                oppProductListFetchXml = @"<fetch version='1.0' output-format='xml-platform' mapping='logical' distinct='false'>
+                oppProductListFetchXml = this.fetchXmlString();
+
+                //Retrieve all opportunity products with year end promo
+                oppProductsList = service.RetrieveMultiple(new FetchExpression(string.Format(oppProductListFetchXml, opportunityId)));
+
+                tracingService.Trace("Opportunity Products" + oppProductsList);
+
+                //Update monthly promo value for each opportunity product with year end promo
+                foreach (Entity oppProductList in oppProductsList.Entities)
+                {
+
+                    //Fields from opportunity entity
+                    if (oppProductList.Contains("fdx_unadjustedmrr"))
+                    {
+                        unadjustedMRRCurr = (Money)oppProductList.Attributes["fdx_unadjustedmrr"];
+                        unadjustedMRR = unadjustedMRRCurr.Value;
+                    }
+
+                    if (oppProductList.Contains("fdx_term"))
+                    {
+                        term = oppProductList.FormattedValues["fdx_term"].ToString();
+                        termValue = Int32.Parse(term);
+                    }
+
+                    if (oppProductList.Contains("fdx_promo"))
+                    {
+                        promoName = (EntityReference)oppProductList.Attributes["fdx_promo"];
+                    }
+
+                    //Fields from promo entity
+                    
+                    Entity promoEntity = service.Retrieve("fdx_promo", ((EntityReference)oppProductList.Attributes["fdx_promo"]).Id, new ColumnSet("fdx_category", "fdx_percentageoff", "fdx_averagenumberofdaystoactivate", "fdx_enddate"));
+
+                    tracingService.Trace("Promos" + promoEntity);
+
+                    if (promoEntity.Contains("fdx_category"))
+                    {
+                        promoCategory = ((OptionSetValue)promoEntity.Attributes["fdx_category"]).Value;
+                    }
+
+                    if (promoEntity.Contains("fdx_percentageoff"))
+                    {
+                        percentageOff = (int)promoEntity.Attributes["fdx_percentageoff"];
+                    }
+
+                    if (promoEntity.Contains("fdx_averagenumberofdaystoactivate"))
+                    {
+                        averageDays = (int)promoEntity.Attributes["fdx_averagenumberofdaystoactivate"];
+                    }
+
+                    if (promoEntity.Contains("fdx_enddate"))
+                    {
+                        endDate = (DateTime)promoEntity.Attributes["fdx_enddate"];
+                    }
+                   
+                    timeDiffference = endDate.Date - actualCloseDate.Date;
+                    monthsTillEndDate = (((int)timeDiffference.TotalDays) - averageDays) / 31;
+
+                    monthlyPromoValue = (unadjustedMRR * ((percentageOff * monthsTillEndDate) / (termValue * 100)));
+
+                    Entity updateOppProduct = new Entity
+                    {
+                        LogicalName = "opportunityproduct",
+                        Id = oppProductList.Id
+                    };
+
+                    updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
+
+                    service.Update(updateOppProduct);
+
+                }
+                 #endregion
+
+            }
+
+            catch (Exception ex)
+            {
+                tracingService.Trace("MyPlugin: {0}", ex.ToString());
+            }
+           
+            #endregion
+        }
+
+
+        private string fetchXmlString()
+        {
+            string fetchXml = @"<fetch version='1.0' output-format='xml-platform' mapping='logical' distinct='false'>
                         <entity name='opportunityproduct'>
                         <attribute name='productid' />
                         <attribute name='productdescription' />
@@ -89,95 +170,9 @@ namespace FdxOppProductPromoPlugin
                             </filter>
                         </link-entity>
                         </entity>
-                    </fetch>";
+                    </fetch>"; 
 
-                    //Retrieve all opportunity products with year end promo
-                     oppProductsList = service.RetrieveMultiple(new FetchExpression(string.Format(oppProductListFetchXml, opportunityId)));
-
-                tracingService.Trace("Opportunity Products" + oppProductsList);
-
-                if (oppProductsList!=null)
-                    {
-                        //Update monthly promo value for each opportunity product with year end promo
-                        foreach (Entity oppProductList in oppProductsList.Entities)
-                        {
-
-                            //Fields from opportunity entity
-                            if (oppProductList.Contains("fdx_unadjustedmrr"))
-                            {
-                                unadjustedMRRCurr = (Money)oppProductList.Attributes["fdx_unadjustedmrr"];
-                                unadjustedMRR = unadjustedMRRCurr.Value;
-                            }
-
-                            if (oppProductList.Contains("fdx_term"))
-                            {
-                                term = oppProductList.FormattedValues["fdx_term"].ToString();
-                                termValue = Int32.Parse(term);
-                            }
-
-                            if (oppProductList.Contains("fdx_promo"))
-                            {
-                                promoName = (EntityReference)oppProductList.Attributes["fdx_promo"];
-                            }
-
-                            //Fields from promo entity
-                            if (promoName != null)
-                            {
-                                Entity promoEntity = service.Retrieve("fdx_promo", ((EntityReference)oppProductList.Attributes["fdx_promo"]).Id, new ColumnSet("fdx_category", "fdx_percentageoff", "fdx_averagenumberofdaystoactivate", "fdx_enddate"));
-
-                            tracingService.Trace("Promos" + promoEntity);
-
-                            if (promoEntity.Contains("fdx_category"))
-                                {
-                                    promoCategory = ((OptionSetValue)promoEntity.Attributes["fdx_category"]).Value;
-                                }
-
-                                if (promoEntity.Contains("fdx_percentageoff"))
-                                {
-                                    percentageOff = (int)promoEntity.Attributes["fdx_percentageoff"];
-                                }
-
-                                if (promoEntity.Contains("fdx_averagenumberofdaystoactivate"))
-                                {
-                                    averageDays = (int)promoEntity.Attributes["fdx_averagenumberofdaystoactivate"];
-                                }
-
-                                if (promoEntity.Contains("fdx_enddate"))
-                                {
-                                    endDate = (DateTime)promoEntity.Attributes["fdx_enddate"];
-                                }
-
-                            }
-
-                            timeDiffference = endDate.Date - actualCloseDate.Date;
-                            monthsTillEndDate = (((int)timeDiffference.TotalDays) - averageDays) / 31;
-
-                            monthlyPromoValue = Math.Floor(unadjustedMRR * ((percentageOff * monthsTillEndDate) / (termValue * 100)));
-
-                            Entity updateOppProduct = new Entity
-                            {
-                                LogicalName = "opportunityproduct",
-                                Id = oppProductList.Id
-                            };
-
-                            updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
-
-                            service.Update(updateOppProduct);
-
-                        }
-
-                    }
-
-                    #endregion
-
-                }
-
-                catch (Exception ex)
-                {
-                    tracingService.Trace("MyPlugin: {0}", ex.ToString());
-                }
-           
-            #endregion
+            return fetchXml;
 
         }
 

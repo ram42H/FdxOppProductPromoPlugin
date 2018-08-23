@@ -111,19 +111,19 @@ namespace FdxOppProductPromoPlugin
 
                             //Calculation for promo type : Free time off
                             case 1:
-                                monthlyPromoValue = Math.Floor((unadjustedMRR * units) / termValue);                                
+                                monthlyPromoValue = ((unadjustedMRR * units) / termValue);                                
                                 updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
                                 break;
 
                             //Calculation for promo type : Flat Dollar off
                             case 2:
-                                monthlyPromoValue = Math.Floor((flatOffAmount * units) / termValue);
+                                monthlyPromoValue = ((flatOffAmount * units) / termValue);
                                 updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
                                 break;
                             
                             //Calculation for promo type : Percentage Off
                             case 3:
-                                monthlyPromoValue = Math.Floor(((percentageOff * units) / (termValue * 100)) * unadjustedMRR);
+                                monthlyPromoValue = (((percentageOff * units) / (termValue * 100)) * unadjustedMRR);
                                 updateOppProduct["fdx_monthlypromovalue"] = new Money(monthlyPromoValue);
                                 break;
 
