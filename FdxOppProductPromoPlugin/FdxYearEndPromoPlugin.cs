@@ -113,7 +113,9 @@ namespace FdxOppProductPromoPlugin
                     }
                    
                     timeDiffference = endDate.Date - actualCloseDate.Date;
-                    monthsTillEndDate = (((int)timeDiffference.TotalDays) - averageDays) / 31;
+                    //monthsTillEndDate = (((int)timeDiffference.TotalDays) - averageDays) / 31;
+                    //decimal check = 0.0m;
+                    monthsTillEndDate = decimal.Divide((((int)timeDiffference.TotalDays) - averageDays), 31);
 
                     monthlyPromoValue = (unadjustedMRR * ((percentageOff * monthsTillEndDate) / (termValue * 100)));
 
